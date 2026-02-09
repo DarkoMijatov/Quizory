@@ -1,0 +1,21 @@
+{
+  "appName": "Quizory",
+  "nav.dashboard": "Dashboard",
+  "nav.quizzes": "Quizzes",
+  "nav.teams": "Teams",
+  "nav.leagues": "Leagues",
+  "nav.settings": "Settings",
+  "landing.title": "Pub quiz platform",
+  "landing.subtitle": "Organize events, score live, and run leagues.",
+  "pricing.free": "Free plan",
+  "pricing.premium": "Premium plan",
+  "dashboard.welcome": "Welcome to organization",
+  "dashboard.metrics": "Key metrics",
+  "teams.title": "Teams",
+  "quizzes.title": "Quizzes",
+  "quizzes.create": "New quiz",
+  "language.switch": "Language",
+  "settings.title": "Organization settings",
+  "settings.color": "Primary color",
+  "common.save": "Save"
+}

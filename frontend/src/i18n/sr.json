@@ -1,0 +1,21 @@
+{
+  "appName": "Quizory",
+  "nav.dashboard": "Kontrolna tabla",
+  "nav.quizzes": "Kvizovi",
+  "nav.teams": "Timovi",
+  "nav.leagues": "Lige",
+  "nav.settings": "Podešavanja",
+  "landing.title": "Platforma za pub kvizove",
+  "landing.subtitle": "Organizujte događaje, bodujte uživo i vodite lige.",
+  "pricing.free": "Besplatni plan",
+  "pricing.premium": "Premium plan",
+  "dashboard.welcome": "Dobrodošli u organizaciju",
+  "dashboard.metrics": "Ključni pokazatelji",
+  "teams.title": "Timovi",
+  "quizzes.title": "Kvizovi",
+  "quizzes.create": "Novi kviz",
+  "language.switch": "Jezik",
+  "settings.title": "Podešavanja organizacije",
+  "settings.color": "Primarna boja",
+  "common.save": "Sačuvaj"
+}
