@@ -11,26 +11,41 @@ public interface IRequestContextAccessor
     RequestContext Get();
 }
 
-public class HeaderRequestContextAccessor(IHttpContextAccessor accessor, AppDbContext db) : IRequestContextAccessor
+public class JwtRequestContextAccessor(IHttpContextAccessor accessor, AppDbContext db) : IRequestContextAccessor
 {
     public RequestContext Get()
     {
         var http = accessor.HttpContext ?? throw new InvalidOperationException("No HTTP context");
-        var userId = Guid.TryParse(http.Request.Headers["X-User-Id"], out var parsed) ? parsed : db.Users.Select(x => x.Id).First();
-        var orgId = Guid.TryParse(http.Request.Headers["X-Organization-Id"], out var orgParsed) ? orgParsed : db.Organizations.Select(x => x.Id).First();
-        var membership = db.Memberships.First(x => x.UserId == userId && x.OrganizationId == orgId);
-        var language = http.Request.Headers["Accept-Language"].ToString().StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "sr";
-        return new RequestContext(userId, orgId, membership.Role, language);
+        var userIdClaim = http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? http.User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            throw new UnauthorizedAccessException("User not authenticated.");
+        var orgHeader = http.Request.Headers["X-Organization-Id"].FirstOrDefault();
+        Membership membership;
+        if (!string.IsNullOrEmpty(orgHeader) && Guid.TryParse(orgHeader, out var orgId))
+        {
+            membership = db.Memberships.FirstOrDefault(x => x.UserId == userId && x.OrganizationId == orgId)
+                ?? throw new UnauthorizedAccessException("User is not a member of the selected organization.");
+        }
+        else
+        {
+            membership = db.Memberships.Where(x => x.UserId == userId).OrderBy(x => x.Role == OrganizationRole.Owner ? 0 : 1).FirstOrDefault()
+                ?? throw new UnauthorizedAccessException("User has no organization.");
+        }
+        var preferredLang = http.User.FindFirst("preferred_language")?.Value ?? "sr";
+        var acceptLang = http.Request.Headers["Accept-Language"].ToString();
+        var language = acceptLang.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : (preferredLang == "en" ? "en" : "sr");
+        return new RequestContext(userId, membership.OrganizationId, membership.Role, language);
     }
 }
 
-public interface IAuthorizationService
+public interface IOrgAuthorizationService
 {
     void EnsureAtLeast(OrganizationRole role);
     void EnsureAdminCap(Guid organizationId, OrganizationRole targetRole);
 }
 
-public class AuthorizationService(IRequestContextAccessor context, AppDbContext db) : IAuthorizationService
+public class AuthorizationService(IRequestContextAccessor context, AppDbContext db) : IOrgAuthorizationService
 {
     public void EnsureAtLeast(OrganizationRole role)
     {
@@ -58,6 +73,7 @@ public interface ISubscriptionService
 {
     void EnforceFeature(string feature);
     void EnforceQuizMonthlyLimit();
+    void EnforceMemberLimit();
 }
 
 public class SubscriptionService(IRequestContextAccessor context, AppDbContext db) : ISubscriptionService
@@ -76,9 +92,21 @@ public class SubscriptionService(IRequestContextAccessor context, AppDbContext d
         var org = db.Organizations.Find(ctx.OrganizationId)!;
         if (org.SubscriptionPlan == SubscriptionPlan.Free)
         {
-            var month = DateTime.UtcNow.Month;
-            var count = db.Quizzes.Count(q => q.OrganizationId == ctx.OrganizationId && q.CreatedAtUtc.Month == month);
+            var now = DateTime.UtcNow;
+            var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var count = db.Quizzes.Count(q => q.OrganizationId == ctx.OrganizationId && !q.IsDeleted && q.CreatedAtUtc >= startOfMonth);
             if (count >= 10) throw new InvalidOperationException("Free plan monthly quiz limit reached.");
+        }
+    }
+
+    public void EnforceMemberLimit()
+    {
+        var ctx = context.Get();
+        var org = db.Organizations.Find(ctx.OrganizationId)!;
+        if (org.SubscriptionPlan == SubscriptionPlan.Free)
+        {
+            var memberCount = db.Memberships.Count(m => m.OrganizationId == ctx.OrganizationId);
+            if (memberCount >= 1) throw new InvalidOperationException("Free plan allows only the owner; add members requires premium.");
         }
     }
 }
@@ -123,7 +151,9 @@ public class DictionaryTextLocalizer(IRequestContextAccessor context) : ITextLoc
     {
         ["QuizCreated"] = ("Kviz je uspešno kreiran.", "Quiz created successfully."),
         ["ValidationRequired"] = ("Polje je obavezno.", "Field is required."),
-        ["Forbidden"] = ("Nemate dozvolu za ovu akciju.", "You are not allowed to perform this action.")
+        ["Forbidden"] = ("Nemate dozvolu za ovu akciju.", "You are not allowed to perform this action."),
+        ["CategoryLocked"] = ("Kategorija je zaključana.", "Category score is locked."),
+        ["HelpAlreadyUsed"] = ("Pomoć je već iskorišćena za ovaj tim u ovom kvizu.", "Help already used for this team in this quiz.")
     };
 
     public string T(string key)
@@ -140,7 +170,7 @@ public static class SeedData
     public static async Task InitializeAsync(AppDbContext db)
     {
         if (await db.Users.AnyAsync()) return;
-        var owner = new User { Email = "owner@quizory.local", DisplayName = "Owner", PasswordHash = "hashed", IsEmailVerified = true };
+        var owner = new User { Email = "owner@quizory.local", DisplayName = "Owner", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password1!", BCrypt.Net.BCrypt.GenerateSalt(12)), IsEmailVerified = true };
         var org = new Organization { Name = "Demo Organization", SubscriptionPlan = SubscriptionPlan.Trial, TrialEndsAtUtc = DateTime.UtcNow.AddDays(14) };
         var membership = new Membership { UserId = owner.Id, OrganizationId = org.Id, Role = OrganizationRole.Owner };
         db.Users.Add(owner);
