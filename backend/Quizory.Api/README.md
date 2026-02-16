@@ -5,7 +5,7 @@ Production-ready ASP.NET Core Web API for the Quizory multi-tenant SaaS (pub qui
 ## Tech Stack
 
 - **.NET 8**, ASP.NET Core Web API  
-- **PostgreSQL** (or InMemory when no connection string)  
+- **SQL Server** (or InMemory when no connection string)  
 - **JWT** authentication (email/password, verification, password reset)  
 - **BCrypt** password hashing  
 - **EF Core** with soft delete and tenant isolation  
@@ -15,7 +15,7 @@ Production-ready ASP.NET Core Web API for the Quizory multi-tenant SaaS (pub qui
 ## Configuration
 
 - **appsettings.json** / **appsettings.Development.json**
-  - `ConnectionStrings:DefaultConnection` – PostgreSQL (leave empty for InMemory).
+  - `ConnectionStrings:DefaultConnection` – SQL Server (leave empty for InMemory).
   - `Jwt:Secret` – min 32 characters for HMAC-SHA256.
   - `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpirationMinutes`.
 
@@ -26,7 +26,7 @@ dotnet run
 ```
 
 - Swagger: `https://localhost:53448/swagger` (or port from launchSettings).
-- With PostgreSQL: set `DefaultConnection` and run migrations (or use `EnsureCreatedAsync()` in dev).
+- With SQL Server: set `DefaultConnection` and run migrations (or use `EnsureCreatedAsync()` in dev).
 
 ## Auth
 
@@ -53,6 +53,8 @@ Send JWT in `Authorization: Bearer <token>`. For multi-org, send **X-Organizatio
 | **Statistics** | GET /api/statistics/quizzes, GET leagues/{id}, GET categories, GET teams/{id}/history |
 | **Export/Import** | GET /api/export/template/excel, GET quiz/{id}/excel|pdf, GET league/{id}/excel, POST import/excel |
 | **Share** (Premium) | POST /api/share/token, GET /api/share/leaderboard/{token} (anonymous) |
+| **Subscription** | GET /api/subscription, POST /api/subscription/trial, POST premium, POST downgrade |
+| **Payments** | POST /api/payments, GET /api/payments, GET /api/payments/{id}, POST confirm, POST {id}/confirm |
 
 ## Roles & Limits
 
@@ -63,9 +65,13 @@ Send JWT in `Authorization: Bearer <token>`. For multi-org, send **X-Organizatio
 
 ## Subscription
 
-- **Free**: single org, owner only, max 10 quizzes/month, no leagues/question bank/share/members.
-- **Trial**: 14 days premium; reminder email 5 days before expiry (hosted service).
+- **Free**: single org, owner only, max 5 quizzes/month, no leagues/question bank/share/members. New organizations default to Free.
+- **Trial**: 14 days premium (same features as Premium); can only be started from Free. Reminder email 5 days before expiry; expired trials are auto-downgraded to Free (daily job).
 - **Premium**: members, up to 2 Admins, unlimited quizzes, leagues, question bank, share, custom branding.
+
+**Subscription API** (Owner only for write): **GET /api/subscription** returns current plan, trial end (if any), usage (quizzes this month, member count), limits, and feature flags. **POST /api/subscription/trial** starts a 14-day trial (from Free). **POST /api/subscription/premium** sets Premium. **POST /api/subscription/downgrade** sets Free (fails if org has more than one member).
+
+**Payment API** (Owner only): Payments are for **Premium** plan only. **POST /api/payments** body: `{ "plan": "Premium", "amount": 9.99, "currency": "EUR" }` creates a Pending payment and returns `PaymentDto` (id, amount, status, optional clientSecret for future Stripe). **GET /api/payments** lists payments (paginated). **GET /api/payments/{id}** gets one. **POST /api/payments/confirm** body: `{ "externalPaymentId": "..." }` or **POST /api/payments/{id}/confirm** marks payment Completed and sets organization to Premium.
 
 ## Seed (InMemory)
 

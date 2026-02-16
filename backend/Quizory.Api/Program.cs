@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (!string.IsNullOrWhiteSpace(connectionString))
-    builder.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(connectionString));
+    builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
 else
     builder.Services.AddDbContext<AppDbContext>(opt => opt.UseInMemoryDatabase("quizory"));
 
@@ -28,6 +28,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddScoped<IExportImportService, ExportImportService>();
 builder.Services.AddScoped<IShareService, ShareService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IEmailSender, NoOpEmailSender>();
 builder.Services.AddHostedService<TrialReminderService>();

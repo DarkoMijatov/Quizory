@@ -66,3 +66,28 @@ public record ExportRequest(string Format, Guid? QuizId, Guid? LeagueId, DateTim
 // Share
 public record CreateShareTokenRequest(Guid QuizId, DateTime? ExpiresAtUtc);
 public record ShareLeaderboardDto(List<TeamRankDto> Rankings, string QuizName, DateTime QuizDate, string? PrimaryColor);
+
+// Subscription
+public record SubscriptionDto(
+    string Plan,
+    bool IsTrialActive,
+    DateTime? TrialEndsAtUtc,
+    int QuizzesUsedThisMonth,
+    int QuizzesLimitPerMonth,
+    int MemberCount,
+    int MemberLimit,
+    SubscriptionFeaturesDto Features);
+
+public record SubscriptionFeaturesDto(
+    bool Leagues,
+    bool QuestionBank,
+    bool Members,
+    bool Share,
+    bool CustomBranding);
+
+public record SetSubscriptionPlanRequest(string Plan);
+
+// Payment (Subscription)
+public record CreatePaymentRequest(string Plan, decimal Amount, string? Currency);
+public record PaymentDto(Guid Id, Guid OrganizationId, decimal Amount, string Currency, string Status, string Plan, string? ExternalPaymentId, DateTime CreatedAtUtc, DateTime? CompletedAtUtc, string? ClientSecret);
+public record ConfirmPaymentRequest(string? ExternalPaymentId);

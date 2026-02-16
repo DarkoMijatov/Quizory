@@ -36,7 +36,9 @@ public class TrialReminderService : BackgroundService
     {
         using var scope = _sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var subscriptionService = scope.ServiceProvider.GetRequiredService<ISubscriptionService>();
         var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+        await subscriptionService.ExpireTrialsAsync();
         var inFiveDays = DateTime.UtcNow.Date.AddDays(5);
         var inFiveDaysEnd = inFiveDays.AddDays(1);
         var orgs = await db.Organizations

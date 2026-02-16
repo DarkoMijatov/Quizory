@@ -69,48 +69,6 @@ public class AuthorizationService(IRequestContextAccessor context, AppDbContext 
     }
 }
 
-public interface ISubscriptionService
-{
-    void EnforceFeature(string feature);
-    void EnforceQuizMonthlyLimit();
-    void EnforceMemberLimit();
-}
-
-public class SubscriptionService(IRequestContextAccessor context, AppDbContext db) : ISubscriptionService
-{
-    public void EnforceFeature(string feature)
-    {
-        var ctx = context.Get();
-        var org = db.Organizations.Find(ctx.OrganizationId)!;
-        if (org.SubscriptionPlan == SubscriptionPlan.Free && (feature is "leagues" or "questionBank" or "members" or "share"))
-            throw new InvalidOperationException($"Feature '{feature}' requires premium.");
-    }
-
-    public void EnforceQuizMonthlyLimit()
-    {
-        var ctx = context.Get();
-        var org = db.Organizations.Find(ctx.OrganizationId)!;
-        if (org.SubscriptionPlan == SubscriptionPlan.Free)
-        {
-            var now = DateTime.UtcNow;
-            var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var count = db.Quizzes.Count(q => q.OrganizationId == ctx.OrganizationId && !q.IsDeleted && q.CreatedAtUtc >= startOfMonth);
-            if (count >= 10) throw new InvalidOperationException("Free plan monthly quiz limit reached.");
-        }
-    }
-
-    public void EnforceMemberLimit()
-    {
-        var ctx = context.Get();
-        var org = db.Organizations.Find(ctx.OrganizationId)!;
-        if (org.SubscriptionPlan == SubscriptionPlan.Free)
-        {
-            var memberCount = db.Memberships.Count(m => m.OrganizationId == ctx.OrganizationId);
-            if (memberCount >= 1) throw new InvalidOperationException("Free plan allows only the owner; add members requires premium.");
-        }
-    }
-}
-
 public interface IScoringService
 {
     Task<Dictionary<Guid, int>> ComputeRankingAsync(Guid quizId, Guid organizationId);
@@ -153,7 +111,17 @@ public class DictionaryTextLocalizer(IRequestContextAccessor context) : ITextLoc
         ["ValidationRequired"] = ("Polje je obavezno.", "Field is required."),
         ["Forbidden"] = ("Nemate dozvolu za ovu akciju.", "You are not allowed to perform this action."),
         ["CategoryLocked"] = ("Kategorija je zaključana.", "Category score is locked."),
-        ["HelpAlreadyUsed"] = ("Pomoć je već iskorišćena za ovaj tim u ovom kvizu.", "Help already used for this team in this quiz.")
+        ["HelpAlreadyUsed"] = ("Pomoć je već iskorišćena za ovaj tim u ovom kvizu.", "Help already used for this team in this quiz."),
+        ["OrganizationNotFound"] = ("Organizacija nije pronađena.", "Organization not found."),
+        ["OwnerOnly"] = ("Samo vlasnik može izvršiti ovu akciju.", "Only the owner can perform this action."),
+        ["TrialOnlyFromFree"] = ("Probni period se može aktivirati samo sa besplatnog plana.", "Trial can only be started from the free plan."),
+        ["DowngradeRemoveMembersFirst"] = ("Uklonite sve članove osim sebe pre prelaska na besplatni plan.", "Remove all members except yourself before downgrading to free."),
+        ["FeatureRequiresPremium"] = ("Funkcija '{feature}' zahteva premium plan.", "Feature '{feature}' requires a premium plan."),
+        ["FreeQuizLimitReached"] = ("Dostignut je mesečni limit kvizova za besplatni plan.", "Free plan monthly quiz limit reached."),
+        ["FreeMemberLimitReached"] = ("Besplatni plan dozvoljava samo vlasnika; za članove je potreban premium.", "Free plan allows only the owner; premium required for members."),
+        ["PaymentOnlyForPremium"] = ("Plaćanje je podržano samo za Premium plan.", "Payment is only supported for Premium plan."),
+        ["PaymentAmountInvalid"] = ("Iznos plaćanja mora biti veći od nule.", "Payment amount must be greater than zero."),
+        ["PaymentAlreadyProcessed"] = ("Plaćanje je već obrađeno.", "Payment has already been processed.")
     };
 
     public string T(string key)

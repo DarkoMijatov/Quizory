@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<GlobalSettings> GlobalSettings => Set<GlobalSettings>();
     public DbSet<Team> Teams => Set<Team>();
@@ -44,6 +45,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.UserId);
         });
         modelBuilder.Entity<Membership>().HasIndex(x => new { x.OrganizationId, x.UserId }).IsUnique();
+        modelBuilder.Entity<Payment>(e =>
+        {
+            e.HasIndex(x => x.OrganizationId);
+            e.HasIndex(x => x.ExternalPaymentId).HasFilter("ExternalPaymentId IS NOT NULL");
+        });
         modelBuilder.Entity<GlobalSettings>().HasIndex(x => x.OrganizationId).IsUnique();
         modelBuilder.Entity<TeamAlias>().HasIndex(x => new { x.OrganizationId, x.QuizId, x.Alias }).IsUnique();
         modelBuilder.Entity<HelpUsage>().HasIndex(x => new { x.OrganizationId, x.QuizId, x.TeamId, x.HelpTypeId }).IsUnique();

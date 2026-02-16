@@ -2,6 +2,7 @@ namespace Quizory.Api.Domain;
 
 public enum OrganizationRole { Owner, Admin, User }
 public enum SubscriptionPlan { Free, Trial, Premium }
+public enum PaymentStatus { Pending, Completed, Failed, Refunded }
 public enum QuizStatus { Draft, Live, Finished }
 public enum HelpBehavior { DoubleScore, MarkerOnly }
 public enum QuestionType { Text, MultipleChoice, Matching, Image }
@@ -53,11 +54,27 @@ public class Organization
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
-    public SubscriptionPlan SubscriptionPlan { get; set; } = SubscriptionPlan.Trial;
+    public SubscriptionPlan SubscriptionPlan { get; set; } = SubscriptionPlan.Free;
     public DateTime? TrialEndsAtUtc { get; set; }
     public string PrimaryColor { get; set; } = "#5E35B1";
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Payment for subscription (Premium). Links to Organization and SubscriptionPlan.</summary>
+public class Payment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OrganizationId { get; set; }
+    public decimal Amount { get; set; }
+    public string Currency { get; set; } = "EUR";
+    public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
+    public SubscriptionPlan Plan { get; set; }
+    /// <summary>External payment provider id (e.g. Stripe payment intent id).</summary>
+    public string? ExternalPaymentId { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? CompletedAtUtc { get; set; }
+    public string? Metadata { get; set; }
 }
 
 public class Membership
