@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\backend",
+    "\\backend\\Quizory.Api",
+    "\\backend\\Quizory.Api\\Controllers",
+    "\\backend\\Quizory.Api\\Domain",
+    "\\frontend",
+    "\\frontend\\src",
+    "\\frontend\\src\\api",
+    "\\frontend\\src\\components"
+  ],
+  "SelectedNode": "\\backend\\Quizory.Api\\Program.cs",
+  "PreviewInSolutionExplorer": false
+}

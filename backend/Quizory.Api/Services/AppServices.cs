@@ -11,26 +11,41 @@ public interface IRequestContextAccessor
     RequestContext Get();
 }
 
-public class HeaderRequestContextAccessor(IHttpContextAccessor accessor, AppDbContext db) : IRequestContextAccessor
+public class JwtRequestContextAccessor(IHttpContextAccessor accessor, AppDbContext db) : IRequestContextAccessor
 {
     public RequestContext Get()
     {
         var http = accessor.HttpContext ?? throw new InvalidOperationException("No HTTP context");
-        var userId = Guid.TryParse(http.Request.Headers["X-User-Id"], out var parsed) ? parsed : db.Users.Select(x => x.Id).First();
-        var orgId = Guid.TryParse(http.Request.Headers["X-Organization-Id"], out var orgParsed) ? orgParsed : db.Organizations.Select(x => x.Id).First();
-        var membership = db.Memberships.First(x => x.UserId == userId && x.OrganizationId == orgId);
-        var language = http.Request.Headers["Accept-Language"].ToString().StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "sr";
-        return new RequestContext(userId, orgId, membership.Role, language);
+        var userIdClaim = http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? http.User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            throw new UnauthorizedAccessException("User not authenticated.");
+        var orgHeader = http.Request.Headers["X-Organization-Id"].FirstOrDefault();
+        Membership membership;
+        if (!string.IsNullOrEmpty(orgHeader) && Guid.TryParse(orgHeader, out var orgId))
+        {
+            membership = db.Memberships.FirstOrDefault(x => x.UserId == userId && x.OrganizationId == orgId)
+                ?? throw new UnauthorizedAccessException("User is not a member of the selected organization.");
+        }
+        else
+        {
+            membership = db.Memberships.Where(x => x.UserId == userId).OrderBy(x => x.Role == OrganizationRole.Owner ? 0 : 1).FirstOrDefault()
+                ?? throw new UnauthorizedAccessException("User has no organization.");
+        }
+        var preferredLang = http.User.FindFirst("preferred_language")?.Value ?? "sr";
+        var acceptLang = http.Request.Headers["Accept-Language"].ToString();
+        var language = acceptLang.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : (preferredLang == "en" ? "en" : "sr");
+        return new RequestContext(userId, membership.OrganizationId, membership.Role, language);
     }
 }
 
-public interface IAuthorizationService
+public interface IOrgAuthorizationService
 {
     void EnsureAtLeast(OrganizationRole role);
     void EnsureAdminCap(Guid organizationId, OrganizationRole targetRole);
 }
 
-public class AuthorizationService(IRequestContextAccessor context, AppDbContext db) : IAuthorizationService
+public class AuthorizationService(IRequestContextAccessor context, AppDbContext db) : IOrgAuthorizationService
 {
     public void EnsureAtLeast(OrganizationRole role)
     {
@@ -50,35 +65,6 @@ public class AuthorizationService(IRequestContextAccessor context, AppDbContext 
         {
             var count = db.Memberships.Count(x => x.OrganizationId == organizationId && (x.Role == OrganizationRole.Owner || x.Role == OrganizationRole.Admin));
             if (count >= 3) throw new InvalidOperationException("Admin cap reached (max 3 admin-level accounts).");
-        }
-    }
-}
-
-public interface ISubscriptionService
-{
-    void EnforceFeature(string feature);
-    void EnforceQuizMonthlyLimit();
-}
-
-public class SubscriptionService(IRequestContextAccessor context, AppDbContext db) : ISubscriptionService
-{
-    public void EnforceFeature(string feature)
-    {
-        var ctx = context.Get();
-        var org = db.Organizations.Find(ctx.OrganizationId)!;
-        if (org.SubscriptionPlan == SubscriptionPlan.Free && (feature is "leagues" or "questionBank" or "members" or "share"))
-            throw new InvalidOperationException($"Feature '{feature}' requires premium.");
-    }
-
-    public void EnforceQuizMonthlyLimit()
-    {
-        var ctx = context.Get();
-        var org = db.Organizations.Find(ctx.OrganizationId)!;
-        if (org.SubscriptionPlan == SubscriptionPlan.Free)
-        {
-            var month = DateTime.UtcNow.Month;
-            var count = db.Quizzes.Count(q => q.OrganizationId == ctx.OrganizationId && q.CreatedAtUtc.Month == month);
-            if (count >= 10) throw new InvalidOperationException("Free plan monthly quiz limit reached.");
         }
     }
 }
@@ -123,7 +109,19 @@ public class DictionaryTextLocalizer(IRequestContextAccessor context) : ITextLoc
     {
         ["QuizCreated"] = ("Kviz je uspešno kreiran.", "Quiz created successfully."),
         ["ValidationRequired"] = ("Polje je obavezno.", "Field is required."),
-        ["Forbidden"] = ("Nemate dozvolu za ovu akciju.", "You are not allowed to perform this action.")
+        ["Forbidden"] = ("Nemate dozvolu za ovu akciju.", "You are not allowed to perform this action."),
+        ["CategoryLocked"] = ("Kategorija je zaključana.", "Category score is locked."),
+        ["HelpAlreadyUsed"] = ("Pomoć je već iskorišćena za ovaj tim u ovom kvizu.", "Help already used for this team in this quiz."),
+        ["OrganizationNotFound"] = ("Organizacija nije pronađena.", "Organization not found."),
+        ["OwnerOnly"] = ("Samo vlasnik može izvršiti ovu akciju.", "Only the owner can perform this action."),
+        ["TrialOnlyFromFree"] = ("Probni period se može aktivirati samo sa besplatnog plana.", "Trial can only be started from the free plan."),
+        ["DowngradeRemoveMembersFirst"] = ("Uklonite sve članove osim sebe pre prelaska na besplatni plan.", "Remove all members except yourself before downgrading to free."),
+        ["FeatureRequiresPremium"] = ("Funkcija '{feature}' zahteva premium plan.", "Feature '{feature}' requires a premium plan."),
+        ["FreeQuizLimitReached"] = ("Dostignut je mesečni limit kvizova za besplatni plan.", "Free plan monthly quiz limit reached."),
+        ["FreeMemberLimitReached"] = ("Besplatni plan dozvoljava samo vlasnika; za članove je potreban premium.", "Free plan allows only the owner; premium required for members."),
+        ["PaymentOnlyForPremium"] = ("Plaćanje je podržano samo za Premium plan.", "Payment is only supported for Premium plan."),
+        ["PaymentAmountInvalid"] = ("Iznos plaćanja mora biti veći od nule.", "Payment amount must be greater than zero."),
+        ["PaymentAlreadyProcessed"] = ("Plaćanje je već obrađeno.", "Payment has already been processed.")
     };
 
     public string T(string key)
@@ -140,7 +138,7 @@ public static class SeedData
     public static async Task InitializeAsync(AppDbContext db)
     {
         if (await db.Users.AnyAsync()) return;
-        var owner = new User { Email = "owner@quizory.local", DisplayName = "Owner", PasswordHash = "hashed", IsEmailVerified = true };
+        var owner = new User { Email = "owner@quizory.local", DisplayName = "Owner", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password1!", BCrypt.Net.BCrypt.GenerateSalt(12)), IsEmailVerified = true };
         var org = new Organization { Name = "Demo Organization", SubscriptionPlan = SubscriptionPlan.Trial, TrialEndsAtUtc = DateTime.UtcNow.AddDays(14) };
         var membership = new Membership { UserId = owner.Id, OrganizationId = org.Id, Role = OrganizationRole.Owner };
         db.Users.Add(owner);
