@@ -53,7 +53,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnAuthenticationFailed = _ => Task.CompletedTask,
             OnTokenValidated = context =>
             {
-                var sub = context.Principal?.FindFirst("sub")?.Value;
+                var sub = context.Principal?.FindFirst("sub")?.Value
+                    ?? context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(sub))
                     context.Fail("Invalid token.");
                 return Task.CompletedTask;
