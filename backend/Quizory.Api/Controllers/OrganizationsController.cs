@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Quizory.Api.Data;
@@ -6,6 +8,7 @@ using Quizory.Api.Dtos;
 using Quizory.Api.Services;
 
 namespace Quizory.Api.Controllers;
+
 
 [ApiController]
 [Route("api/organizations")]
