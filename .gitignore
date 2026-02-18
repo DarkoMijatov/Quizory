@@ -4,3 +4,4 @@ node_modules/
 frontend/dist/
 .vscode/
 .DS_Store
+/backend/Quizory.Api/.vs
