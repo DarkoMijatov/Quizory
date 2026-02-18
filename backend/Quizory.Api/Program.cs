@@ -113,6 +113,9 @@ app.UseRequestLocalization(new RequestLocalizationOptions
     SupportedUICultures = supportedCultures
 });
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

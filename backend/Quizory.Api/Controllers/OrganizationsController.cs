@@ -12,8 +12,6 @@ namespace Quizory.Api.Controllers;
 
 [ApiController]
 [Route("api/organizations")]
-[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-
 public class OrganizationsController(AppDbContext db, IRequestContextAccessor context, IOrgAuthorizationService auth, ISubscriptionService subscriptions) : ControllerBase
 {
     [HttpGet("me")]
